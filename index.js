@@ -47,11 +47,11 @@ function handleMove(request, response) {
   let possibleMoves = ['up', 'right', 'down', 'left'];
 
   // arrange foods by closest distance
-  const closestFoods = findClosestFood(food, head);
-  console.log('head:', head);
-  console.log('my body:', snakeBody);
+  let closestFoods = findClosestFood(food, head);
+  // console.log('head:', head);
+  // console.log('my body:', snakeBody);
 
-  const move = moveTo(closestFoods, head, snakeBody, boardLimit, snakes);
+  let move = moveTo(closestFoods, head, snakeBody, boardLimit, snakes);
   response.status(200).send({ move: move });
 }
 
@@ -79,7 +79,7 @@ function findClosestFood(foodArray, head) {
 }
 
 function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
-  console.log('snakes in movetowards:', snakes);
+  // console.log('snakes in movetowards:', snakes);
   const distanceDiffX = food.x - head.x;
   const distanceDiffY = food.y - head.y;
   const position = { distanceDiffX, distanceDiffY }
@@ -89,7 +89,7 @@ function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
 
   // let possibleMoves = [moveAsCoord('up', head), moveAsCoord('right', head), moveAsCoord('down', head), moveAsCoord('left', head)];
 
-  let newPossibleMoves = possibleMoves.filter(move => !offBoard(moveAsCoord(move, head), boardLimit) && !coordEqual(moveAsCoord(move, head), snakeBody)) // && !coordEqual(moveAsCoord(move, head), snakes));
+  let newPossibleMoves = possibleMoves.filter(move => !offBoard(moveAsCoord(move, head), boardLimit) && !coordEqual(moveAsCoord(move, head), snakeBody) && !coordEqual(moveAsCoord(move, head), snakes));
 
   console.log('new possible moves:', newPossibleMoves);
 
@@ -102,6 +102,9 @@ function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
   let diffX = food.x - head.x;
   let diffY = food.y - head.y;
 
+  if (newPossibleMoves.length === 1) {
+    return newPossibleMoves[0];
+  }
   // absolute difference in distance
   if (diffX < 0) {
     diffX *= -1;
@@ -112,8 +115,7 @@ function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
   }
 
   if (diffX === 0) {
-    if (distanceDiffY > 0) {
-
+    if (distanceDiffY > 0 && newPossibleMoves.includes('up')) {
       return 'up';
     } else {
       return 'down';
@@ -121,7 +123,7 @@ function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
   } 
   
   if (diffY === 0) {
-    if (distanceDiffX > 0) {
+    if (distanceDiffX > 0 && newPossibleMoves.includes('right')) {
       return 'right';
     } else {
       return 'left';
@@ -129,22 +131,25 @@ function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
   }
 
   if (diffX < diffY) {
-    if (distanceDiffX > 0) {
+    if (distanceDiffX > 0 && newPossibleMoves.includes('right')) {
       return 'right';
     } else {
       return 'left';
     }
-  } else if (diffY < diffX) {
+  } else if (diffY < diffX && newPossibleMoves.includes('up')) {
     if (distanceDiffY > 0) {
       return 'up';
     } else {
       return 'down';
     }
   } else if (diffX === diffY) {
+    console.log('diffX ' + diffX + ' = diffY ' + diffY);
     // invalidate any moves that cannot be made
-    for (const mv of newPossibleMoves) {
-      const coord = moveAsCoord(mv, head);
-      if (distanceDiffX > 0 && !offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody)) { // && !coordEqual(moveAsCoord, snakes)) {
+    for (let mv of newPossibleMoves) {
+      console.log('mv:', mv);
+      let coord = moveAsCoord(mv, head);
+      if (distanceDiffX > 0 && !offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody) && !coordEqual(moveAsCoord, snakes)) {
+        console.log('this is the move from else:', mv);
         return mv;
       }
     }
@@ -165,35 +170,33 @@ function moveAsCoord(move, head) {
 }
 
 function moveTo(array, head, snakeBody, boardLimit, snakes) {
-   // iterate through the sorted foods array and return the first move that passes the validation (not off board, not part of body)
-   console.log('snakes in moveTo:', snakes);
+  // iterate through the sorted foods array and return the first move that passes the validation (not off board, not part of body)
+  // console.log('snakes in moveTo:', snakes);
+  console.log('head:', head);
+  console.log('array in moveTo:', array);
+
   for (let i = 0; i < array.length; i++) {
-    const moveToFood = moveTowardsClosestFood(array[i], head, snakeBody, boardLimit, snakes);
-    const coord = moveAsCoord(moveToFood, head); 
-    if (!offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody)) { // && !coordEqual(coord, snakes)) {
-      console.log('moveToFood:', moveToFood);
+    console.log('array[i] (closest food):', array[i]);
+    let moveToFood = moveTowardsClosestFood(array[i], head, snakeBody, boardLimit, snakes);
+    let coord = moveAsCoord(moveToFood, head); 
+    console.log('moveToFood:', moveToFood);
+    console.log('coord:', coord);
+    if (!offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody) && !coordEqual(coord, snakes)) {
+      console.log('moveToFood valid!:', moveToFood);
       move = moveToFood;
-      console.log('MOVE:', move);
+      console.log('MOVE CONFIRMED:', move);
       return move;
-    } else {
-      // if the move is not valid:
-      // 1. delete original move from possible moveset
-      // 2. find the next best move
-      // 3. validate and pass move for returning
-      console.log(`{ ${array[i].x}, ${array[i].y} } did not pass validation; deleting from possible moveset`);
-      const newArray = array.filter(coord => coord !== array[i]); 
-      console.log('newArray from move fn:', newArray);
-      moveTo(newArray, head, snakeBody, boardLimit);
     }
   }
 }
 
 function offBoard(position, boardLimit) {
-  if (position.x > boardLimit || position.x < 0) {
+  console.log('board limit:', boardLimit-1);
+  if (position.x > boardLimit - 1 || position.x < 0) {
     console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   }
-  else if (position.y > boardLimit || position.y < 0) {
+  else if (position.y > boardLimit - 1 || position.y < 0) {
     console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   } else {
@@ -206,7 +209,9 @@ function coordEqual(coord, coordArray) {
   if (coordArray.some(coordinate => coordinate.x === coord.x && coordinate.y === coord.y) && coordArray.some(coordinate => coordinate.y === coord.y && coordinate.x === coord.x)) {
     console.log(`coord { ${coord.x}, ${coord.y} } not valid!`);
     return true;
-  } else return false;
+  } else {
+    return false;
+  }
 }
 
 function handleEnd(request, response) {
