@@ -27,7 +27,7 @@ function handleIndex(request, response) {
 function handleStart(request, response) {
   const gameData = request.body
 
-  console.log('START')
+  console.log('START');
   response.status(200).send('ok')
 }
 
@@ -37,125 +37,118 @@ function handleMove(request, response) {
 
   const head = gameData.you.head;
   const snakeBody = gameData.you.body;
-  const tail = gameData.you.body[gameData.you.body.length-1];
-  const snakes = gameData.board.snakes.map(snake => snake.body).flat();
-  console.log('starting snakes:', snakes);
+  const snakes = gameData.board.snakes;
   const food = gameData.board.food;
   const hazards = gameData.board.hazards;
   const boardLimit = gameData.board.height;
+  // console.log('snakes at turn start:', snakes);
 
-  let possibleMoves = ['up', 'right', 'down', 'left'];
+  let moves = ['up', 'right', 'down', 'left'];
+  // eliminate possible moves that are out of bounds or part of a snake
+  let possibleMoves = filterPossibleMoves(moves, boardLimit, snakeBody, snakes, hazards);
 
-  // arrange foods by closest distance
-  let closestFoods = findClosestFood(food, head);
-  // console.log('head:', head);
-  // console.log('my body:', snakeBody);
+  console.log('possibleMoves:', possibleMoves);
 
-  let move = moveTo(closestFoods, head, snakeBody, boardLimit, snakes);
-  response.status(200).send({ move: move });
-}
+  const foodByDistance = sortTargetsByDistance(food, head);
 
-// calculate distance from snake head
-function distanceFromHead(coord,head) {
-  let diffX = head.x - coord.x;
-  let diffY = head.y - coord.y;
-
-  if (diffX < 0) {
-    diffX *= -1;
-  }
-
-  if (diffY < 0) {
-    diffY *= -1;
-  }
-
-  return (diffX + diffY);
-}
-
-// sort all foods in game by distance closest to snake head
-function findClosestFood(foodArray, head) {
-  const foodByDistance = foodArray.sort(food => distanceFromHead(food, head));
-  console.log('closest food:', foodByDistance[0]);
-  return foodByDistance;
-}
-
-function moveTowardsClosestFood(food, head, snakeBody, boardLimit, snakes) {
-  // console.log('snakes in movetowards:', snakes);
-  const distanceDiffX = food.x - head.x;
-  const distanceDiffY = food.y - head.y;
-  const position = { distanceDiffX, distanceDiffY }
-  console.log('move towards position:', position);
-
-  let possibleMoves = ['up', 'right', 'down', 'left']
-
-  // let possibleMoves = [moveAsCoord('up', head), moveAsCoord('right', head), moveAsCoord('down', head), moveAsCoord('left', head)];
-
-  let newPossibleMoves = possibleMoves.filter(move => !offBoard(moveAsCoord(move, head), boardLimit) && !coordEqual(moveAsCoord(move, head), snakeBody) && !coordEqual(moveAsCoord(move, head), snakes));
-
-  console.log('new possible moves:', newPossibleMoves);
-
-  let newPossibleMovesAsCoords = newPossibleMoves.map((move) => {
-    return moveAsCoord(move, head);
-  });
-
-  console.log('newPossibleMovesAsCoords:', newPossibleMovesAsCoords);
-
-  let diffX = food.x - head.x;
-  let diffY = food.y - head.y;
-
-  if (newPossibleMoves.length === 1) {
-    return newPossibleMoves[0];
-  }
-  // absolute difference in distance
-  if (diffX < 0) {
-    diffX *= -1;
-  }
-
-  if (diffY < 0) {
-    diffY *= -1;
-  }
-
-  if (diffX === 0) {
-    if (distanceDiffY > 0 && newPossibleMoves.includes('up')) {
-      return 'up';
-    } else {
-      return 'down';
-    }
-  } 
+  console.log('food by distance:', foodByDistance);
   
-  if (diffY === 0) {
-    if (distanceDiffX > 0 && newPossibleMoves.includes('right')) {
-      return 'right';
-    } else {
-      return 'left';
-    }
+  let move;
+
+  if (possibleMoves.length === 1) {
+    move = possibleMoves[0];
   }
 
-  if (diffX < diffY) {
-    if (distanceDiffX > 0 && newPossibleMoves.includes('right')) {
-      return 'right';
-    } else {
-      return 'left';
+  if (snakes.length === 2) {
+    //! ********** go for the kill **********
+    const enemy = snakes.find(snake => snake.id !== gameData.you.id);
+
+    if (enemy.length < gameData.you.length) {
+      const headShot = getMoveTowardsTarget(possibleMoves, enemy.head, snakeBody);
+      console.log('GOING FOR THE KILL:', headShot);
+      move = headShot;
     }
-  } else if (diffY < diffX && newPossibleMoves.includes('up')) {
-    if (distanceDiffY > 0) {
-      return 'up';
-    } else {
-      return 'down';
-    }
-  } else if (diffX === diffY) {
-    console.log('diffX ' + diffX + ' = diffY ' + diffY);
-    // invalidate any moves that cannot be made
-    for (let mv of newPossibleMoves) {
-      console.log('mv:', mv);
-      let coord = moveAsCoord(mv, head);
-      if (distanceDiffX > 0 && !offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody) && !coordEqual(moveAsCoord, snakes)) {
-        console.log('this is the move from else:', mv);
-        return mv;
-      }
-    }
+
   }
+
+  let bestMoveTowardsFood = getMoveTowardsTarget(possibleMoves, foodByDistance[0], snakeBody);
+
+  console.log('best move towards food:', bestMoveTowardsFood);
+
+  move = bestMoveTowardsFood;
+
+  // console.log('current direction:', getCurrentDirection(head, neck));
+  console.log('confirming move:', move);
+
+  response.status(200).send({
+    move: move,
+    shout: `Let's go Raptors!`
+  });
 }
 
+//! ********** decision making indicators **********
+// calculate distance from snake head
+function getDiffX(coord, head) {
+  return head.x - coord.x;
+}
+
+function getDiffY(coord, head) {
+  return head.y - coord.y;
+}
+
+function getDistanceFromHead(coord,head) {
+  let diffX = getDiffX(coord, head);
+  let diffY = getDiffY(coord, head);
+
+  if (diffX < 0) {
+    diffX *= -1;
+  }
+
+  if (diffY < 0) {
+    diffY *= -1;
+  }
+
+  return diffX + diffY;
+}
+
+function sortTargetsByDistance(array, head) {
+  const arrSortedByDistance = array.sort((a,b) => getDistanceFromHead(a, head) - getDistanceFromHead(b, head));
+  console.log('closest target:', arrSortedByDistance[0]);
+  return arrSortedByDistance;
+}
+
+function getMoveTowardsTarget(moves, target, snakeBody) {
+  const directionMatrix = {
+    left: 'right',
+    up: 'down',
+    right: 'left',
+    down: 'up'
+  };
+
+  const head = snakeBody[0];
+  const neck = snakeBody[1];
+  // of possible moves, determine which move will get to food in minimum steps
+  const currentDirection = getCurrentDirection(head, neck);
+  const oppositeDirection = directionMatrix[currentDirection];
+
+  const newMoves = moves.filter(move => move !== oppositeDirection);
+
+  //? if positive diffX, coord is to the LEFT of head
+  //? if negative diffX, coord is to the RIGHT of head
+  //? if positive diffY, coord is to the DOWN of head
+  //? if negative diffY, coord is to the UP of head
+
+  console.log('possible moves in getMoveFn:', newMoves);
+
+  let sortedMovesByDistanceFromHead = newMoves.sort((a,b) => getDistanceFromHead(moveAsCoord(a, head), target) - getDistanceFromHead(moveAsCoord(b, head), target));
+
+  console.log('sortedMoves:', sortedMovesByDistanceFromHead);
+
+  return sortedMovesByDistanceFromHead[0];
+
+};
+
+//! ********** identity functions **********
 function moveAsCoord(move, head) {
   switch(move) {
     case 'up':
@@ -169,49 +162,45 @@ function moveAsCoord(move, head) {
   }
 }
 
-function moveTo(array, head, snakeBody, boardLimit, snakes) {
-  // iterate through the sorted foods array and return the first move that passes the validation (not off board, not part of body)
-  // console.log('snakes in moveTo:', snakes);
-  console.log('head:', head);
-  console.log('array in moveTo:', array);
+function getCurrentDirection(head, neck) {
+  if (head.x - neck.x === 0 && head.y - neck.y === -1) {
+    return 'down';
+  } else if (head.x - neck.x === 0 && head.y - neck.y === 1) {
+    return 'up';
+  } else if (head.x - neck.x === -1 && head.y - neck.y === 0) {
+    return 'left';
+  } else return 'right';
+};
 
-  for (let i = 0; i < array.length; i++) {
-    console.log('array[i] (closest food):', array[i]);
-    let moveToFood = moveTowardsClosestFood(array[i], head, snakeBody, boardLimit, snakes);
-    let coord = moveAsCoord(moveToFood, head); 
-    console.log('moveToFood:', moveToFood);
-    console.log('coord:', coord);
-    if (!offBoard(coord, boardLimit) && !coordEqual(coord, snakeBody) && !coordEqual(coord, snakes)) {
-      console.log('moveToFood valid!:', moveToFood);
-      move = moveToFood;
-      console.log('MOVE CONFIRMED:', move);
-      return move;
-    }
-  }
-}
-
+//! ********** validation tests **********
 function offBoard(position, boardLimit) {
-  console.log('board limit:', boardLimit-1);
   if (position.x > boardLimit - 1 || position.x < 0) {
-    console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   }
   else if (position.y > boardLimit - 1 || position.y < 0) {
-    console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   } else {
     return false;
   }
 }
 
-function coordEqual(coord, coordArray) {
-  // return coord.x === coordArray.some(position => position.x) && coord.y === coordArray.some(position => position.y);
-  if (coordArray.some(coordinate => coordinate.x === coord.x && coordinate.y === coord.y) && coordArray.some(coordinate => coordinate.y === coord.y && coordinate.x === coord.x)) {
-    console.log(`coord { ${coord.x}, ${coord.y} } not valid!`);
-    return true;
-  } else {
-    return false;
-  }
+function areCoordsEqual(coord, compareCoord) {
+  return coord.x === compareCoord.x && coord.y === compareCoord.y;
+}
+
+function filterPossibleMoves(array, boardLimit, snakeBody, snakes, hazards) {
+  // identify neck to prevent immediately moving into body
+  const snakesAsOne = snakes.map(snake => snake.body).flat();
+  const head = snakeBody[0];
+  const neck = snakeBody[1];
+  const possibleMoves = array.filter(move => {
+    // avoid any existing snake body coordinates
+    if (!snakesAsOne.some(snake => snake.x === moveAsCoord(move, head).x && snake.y === moveAsCoord(move, head).y) && !hazards.some(hazard => hazard.x === moveAsCoord(move, head).x && hazard.y === moveAsCoord(move, head).y)) {
+      return !offBoard(moveAsCoord(move, head), boardLimit) && !areCoordsEqual(moveAsCoord(move, head), neck);
+    }
+  });
+
+  return possibleMoves;
 }
 
 function handleEnd(request, response) {

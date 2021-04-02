@@ -17,7 +17,7 @@ function handleIndex(request, response) {
   var battlesnakeInfo = {
     apiversion: '1',
     author: 'the_steve',
-    color: '#e71d36',
+    color: '#BE0F34',
     head: 'evil',
     tail: 'weight'
   }
@@ -34,9 +34,7 @@ function handleStart(request, response) {
 function handleMove(request, response) {
   const gameData = request.body;
   console.log('gameData:', gameData);
-
   const head = gameData.you.head;
-  const neck = gameData.you.body[1];
   const snakeBody = gameData.you.body;
   const snakes = gameData.board.snakes;
   const food = gameData.board.food;
@@ -46,7 +44,7 @@ function handleMove(request, response) {
 
   let moves = ['up', 'right', 'down', 'left'];
   // eliminate possible moves that are out of bounds or part of a snake
-  let possibleMoves = filterPossibleMoves(moves, boardLimit, snakeBody, snakes);
+  let possibleMoves = filterPossibleMoves(moves, boardLimit, snakeBody, snakes, hazards);
 
   console.log('possibleMoves:', possibleMoves);
 
@@ -60,6 +58,18 @@ function handleMove(request, response) {
     move = possibleMoves[0];
   }
 
+  if (snakes.length === 2) {
+    //! ********** go for the kill **********
+    const enemy = snakes.find(snake => snake.id !== gameData.you.id);
+
+    if (enemy.length < gameData.you.length) {
+      const headShot = getMoveTowardsTarget(possibleMoves, enemy.head, snakeBody);
+      console.log('GOING FOR THE KILL:', headShot);
+      move = headShot;
+    }
+
+  }
+
   let bestMoveTowardsFood = getMoveTowardsTarget(possibleMoves, foodByDistance[0], snakeBody);
 
   console.log('best move towards food:', bestMoveTowardsFood);
@@ -71,7 +81,7 @@ function handleMove(request, response) {
 
   response.status(200).send({
     move: move,
-    shout: 'serenity now!'
+    shout: `Let's go Raptors!`
   });
 }
 
@@ -97,9 +107,6 @@ function getDistanceFromHead(coord,head) {
     diffY *= -1;
   }
 
-  // console.log('diffX:', diffX);
-  // console.log('diffY:', diffY);
-  // console.log('distance from head:', diffX + diffY);
   return diffX + diffY;
 }
 
@@ -180,14 +187,14 @@ function areCoordsEqual(coord, compareCoord) {
   return coord.x === compareCoord.x && coord.y === compareCoord.y;
 }
 
-function filterPossibleMoves(array, boardLimit, snakeBody, snakes) {
+function filterPossibleMoves(array, boardLimit, snakeBody, snakes, hazards) {
   // identify neck to prevent immediately moving into body
   const snakesAsOne = snakes.map(snake => snake.body).flat();
   const head = snakeBody[0];
   const neck = snakeBody[1];
   const possibleMoves = array.filter(move => {
     // avoid any existing snake body coordinates
-    if (!snakesAsOne.some(snake => snake.x === moveAsCoord(move, head).x && snake.y === moveAsCoord(move, head).y)) {
+    if (!snakesAsOne.some(snake => snake.x === moveAsCoord(move, head).x && snake.y === moveAsCoord(move, head).y) && !hazards.some(hazard => hazard.x === moveAsCoord(move, head).x && hazard.y === moveAsCoord(move, head).y)) {
       return !offBoard(moveAsCoord(move, head), boardLimit) && !areCoordsEqual(moveAsCoord(move, head), neck);
     }
   });
