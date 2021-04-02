@@ -40,10 +40,9 @@ function handleMove(request, response) {
   const food = gameData.board.food;
   const hazards = gameData.board.hazards;
   const boardLimit = gameData.board.height;
-  // console.log('snakes at turn start:', snakes);
 
   let moves = ['up', 'right', 'down', 'left'];
-  // eliminate possible moves that are out of bounds or part of a snake
+  // eliminate possible moves that are out of bounds or hazardous
   let possibleMoves = filterPossibleMoves(moves, boardLimit, snakeBody, snakes, hazards);
 
   console.log('possibleMoves:', possibleMoves);
@@ -53,9 +52,11 @@ function handleMove(request, response) {
   console.log('food by distance:', foodByDistance);
   
   let move;
+  let onlyMove = '';
+  let headshot = '';
 
   if (possibleMoves.length === 1) {
-    move = possibleMoves[0];
+    onlyMove = possibleMoves[0];
   }
 
   if (snakes.length === 2) {
@@ -63,9 +64,8 @@ function handleMove(request, response) {
     const enemy = snakes.find(snake => snake.id !== gameData.you.id);
 
     if (enemy.length < gameData.you.length) {
-      const headShot = getMoveTowardsTarget(possibleMoves, enemy.head, snakeBody);
-      console.log('GOING FOR THE KILL:', headShot);
-      move = headShot;
+      headshot = getMoveTowardsTarget(possibleMoves, enemy.head, snakeBody);
+      console.log('GOING FOR THE KILL:', headshot);
     }
 
   }
@@ -79,10 +79,22 @@ function handleMove(request, response) {
   // console.log('current direction:', getCurrentDirection(head, neck));
   console.log('confirming move:', move);
 
-  response.status(200).send({
-    move: move,
-    shout: `Let's go Raptors!`
-  });
+  if (onlyMove !== '') {
+    response.status(200).send({
+      move: onlyMove,
+      shout: `Mom's spaghetti`
+    });
+  } else if (headshot !== '') {
+    response.status(200).send({
+      move: headshot,
+      shout: 'BOOM, headshot!'
+    })
+  } else {
+    response.status(200).send({
+      move: move,
+      shout: `Let's go Raptors!`
+    });
+  }
 }
 
 //! ********** decision making indicators **********
