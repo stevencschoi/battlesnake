@@ -59,6 +59,7 @@ function handleMove(request, response) {
     move = possibleMoves[0];
   }
 
+  console.log('current direction:', getCurrentDirection(head, neck));
   console.log('moving to:', move);
 
   response.status(200).send({
@@ -82,8 +83,22 @@ function filterPossibleMoves(array, boardLimit, snakeBody, snakes) {
   return possibleMoves;
 }
 
+function getCurrentDirection(head, neck) {
+  if (head.x - neck.x === 0 && head.y - neck.y === -1) {
+    return 'down';
+  } else if (head.x - neck.x === 0 && head.y - neck.y === 1) {
+    return 'up';
+  } else if (head.x - neck.x === -1 && head.y - neck.y === 0) {
+    return 'left';
+  } else return 'right';
+};
+
 // calculate distance from snake head
-function distanceFromHead(coord,head) {
+function getDistanceFromHead(coord,head) {
+  // if positive diffX, coord is to the LEFT of head
+  // if negative diffX, coord is to the RIGHT of head
+  // if positive diffY, coord is to the DOWN of head
+  // if negative diffY, coord is to the UP of head
   let diffX = head.x - coord.x;
   let diffY = head.y - coord.y;
 
