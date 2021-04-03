@@ -48,6 +48,14 @@ function handleMove(request, response) {
   // eliminate possible moves that are out of bounds or hazardous
   let possibleMoves = filterPossibleMoves(moves, boardHeight, boardWidth, snakeBody, snakes, hazards);
 
+  const enemySnakeHeads = snakes
+    .map(snake => snake.head)
+    .flat()
+    .filter(snek => snek.x !== head.x && snek.y !== head.y);
+  
+  console.log('my head:', head);
+  console.log('enemy snake heads:', enemySnakeHeads);
+
   const foodByDistance = sortTargetsByDistance(food, head);
 
   console.log('food by distance:', foodByDistance);
@@ -102,6 +110,8 @@ function handleMove(request, response) {
         console.log('conditional distance from enemy head:',getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)));
         
         //! if there is less than 4 available blocks to move, check if the closest snake head is inside that space and if they are bigger than you, save yourself
+        const potentialEnemyMoves = getPotentialSnakeCoords(enemy.head);
+        
         if (getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)) <= spaceForBestFoodMove && enemy.length >= gameData.you.length) {
           move = bestMoveTowardsOpenSpace.id;
           shout = 'Ew, get away from me.'
@@ -126,6 +136,19 @@ function handleMove(request, response) {
 }
 
 //! ********** decision making indicators **********
+// consider potential hazards from enemy head positions
+function getPotentialSnakeCoords(snakeHead, height, width) {
+  let newPotentialSnakeCoords = [
+    snakeHead,
+    { x: snakeHead.x, y: snakeHead.y + 1}, // *up coord
+    { x: snakeHead.x + 1, y: snakeHead.y}, // *right
+    { x: snakeHead.x, y: snakeHead.y - 1}, // *down
+    { x: snakeHead.x - 1, y: snakeHead.y} // *left
+  ].filter(coord => !offBoard(coord, height, width));
+  console.log('new potential snake coords:', newPotentialSnakeCoords);
+  return newPotentialSnakeCoords;
+}
+
 // look up space available on move
 function getOpenSpace(move, array) {
   const area = array.find(item => item.id === move);
