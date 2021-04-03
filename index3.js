@@ -44,6 +44,7 @@ function handleMove(request, response) {
   
   // console.log('gameData:', gameData);
   console.log('turn:', gameData.turn);
+  snakes.forEach(snake => console.log('snakes in play:', snake.name));
   let moves = ['up', 'right', 'down', 'left'];
 
   const enemySnakeHeads = getEnemySnakeHeads(snakes, head);
@@ -58,84 +59,101 @@ function handleMove(request, response) {
 
   const obstacles = combineHazards(snakes, hazards, head);
   //? array of invalid coordinates on board
-  const obstaclesIncludingMyHead = [...obstacles]; obstaclesIncludingMyHead.push(head);
+  const obstaclesIncludingMyHead = [...obstacles];
+  obstaclesIncludingMyHead.push(head);
+  //? new obstacle array including possible moves by enemies
+  const obstaclesWithPotentialEnemyMoves = combineHazards(snakes, hazards, head, potentialEnemyMoves);
 
   const board = createBoard(boardHeight, boardWidth);
-  const boardAsSafeCoords = board
-    .filter((coord) => !obstaclesIncludingMyHead.find(({ x, y }) => coord.x === x && coord.y === y));
+  const boardAsSafeCoords = board.filter((coord) => !obstaclesIncludingMyHead.find(({ x, y }) => coord.x === x && coord.y === y));
 
   //? eliminate possible moves that are out of bounds or hazardous
   let possibleMoves = filterPossibleMoves(moves, boardHeight, boardWidth, myBody, obstacles);
+  let possibleMovesWithPotentialEnemyMoves = filterPossibleMoves(possibleMoves, boardHeight, boardWidth, myBody, obstaclesWithPotentialEnemyMoves);
+
+  console.log('possibleMoves:', possibleMoves);
+  console.log('possibleMoves including potential enemy moves:', possibleMovesWithPotentialEnemyMoves);
 
   const foodByDistance = sortTargetsByDistance(food, head);
-  // console.log('food by distance:', foodByDistance);
+  console.log('food by distance:', foodByDistance);
   
   let move;
   let shout;
 
-  if (snakes.length === 2) { //! ********** go for the kill **********
-    const enemy = snakes.find(snake => snake.id !== me.id);
-    if (enemy.length < me.length) {
-      move = getMoveTowardsTarget(possibleMoves, enemy.head, myBody);
-      shout = 'BOOM, headshot!';
-      console.log('********** GOING FOR THE KILL:', move);
-    }
-  }
+  const snakesToDestroy = getSnakesToDestroy(snakes, me).map(snake => snake.head);
+  console.log('snakes to destroy:', snakesToDestroy);
+  const snakesToDestroyByDistance = sortTargetsByDistance(snakesToDestroy, head);
 
-  if (possibleMoves.length === 1) {
-    move = possibleMoves[0];
-    shout = `Mom's spaghetti`;
-  } else {
-    const movesSortedByOpenSpace = findOpenSpace(possibleMoves, myBody, obstacles, boardHeight, boardWidth);
-    const bestMoveTowardsOpenSpace = movesSortedByOpenSpace[0];
+  
+  if (snakesToDestroy.length > 0 && getDistanceFromHead(snakesToDestroyByDistance[0], head) < getDistanceFromHead(foodByDistance[0], head)) {
+    console.log('enemy snake distance from head:', getDistanceFromHead(snakesToDestroyByDistance[0], head));
+    console.log('food distance from head:', getDistanceFromHead(foodByDistance[0], head));
     
-    console.log('moves by most safe area:', movesSortedByOpenSpace);
-
-    if (movesSortedByOpenSpace !== undefined) {
-      console.log('best move to open space:', bestMoveTowardsOpenSpace.id, bestMoveTowardsOpenSpace.mostSpace);
+    move = attackSnake(possibleMovesWithPotentialEnemyMoves, snakesToDestroyByDistance[0], me);
+    shout = `I'm coming for dat booty`;
+    console.log('********** TARGETING ENEMY SNEK:', move);
+  } else {
+    if (snakes.length === 2) { //! ********** go for the kill **********
+      const enemy = snakes.find(snake => snake.id !== me.id);
+      if (enemy.length < me.length) {
+        move = getMoveTowardsTarget(possibleMoves, enemy.head, myBody);
+        shout = 'BOOM, headshot!';
+        console.log('********** GOING FOR THE KILL:', move);
+      }
+    }
   
-      let bestMoveTowardsFood = getMoveTowardsTarget(possibleMoves, foodByDistance[0], myBody);
+    if (possibleMoves.length === 1) {
+      move = possibleMoves[0];
+      shout = `Mom's spaghetti`;
+    } else {
+      const movesSortedByOpenSpace = findOpenSpace(possibleMoves, myBody, obstacles, boardHeight, boardWidth);
+      const bestMoveTowardsOpenSpace = movesSortedByOpenSpace[0];
+      
+      console.log('moves by most safe area:', movesSortedByOpenSpace);
   
-      console.log('best move towards food:', bestMoveTowardsFood);
-      //? validate how much space available in move towards food
-      const spaceForBestFoodMove = getOpenSpace(bestMoveTowardsFood, movesSortedByOpenSpace);
+      if (movesSortedByOpenSpace !== undefined) {
+        console.log('best move to open space:', bestMoveTowardsOpenSpace.id, bestMoveTowardsOpenSpace.mostSpace);
+    
+        let bestMoveTowardsFood = getMoveTowardsTarget(possibleMoves, foodByDistance[0], myBody);
+    
+        console.log('best move towards food:', bestMoveTowardsFood);
+        //? validate how much space available in move towards food
+        const spaceForBestFoodMove = getOpenSpace(bestMoveTowardsFood, movesSortedByOpenSpace);
+    
+        console.log('space available for best food move:', spaceForBestFoodMove);
+    
+        //!identify the closest snake, identify their head and if the closest hazard is that snake's head, move towards open space
+    
+        if (spaceForBestFoodMove <= 4) { //todo: probably need a better condition to apply logic
+          const snakeHeadsArray = 
+            snakes.map(snake => snake.head)
+              .flat()
+              .filter(snakeHead => snakeHead.x !== head.x && snakeHead.y !== head.y);
+          
+          const closestSnakeHead = sortTargetsByDistance(snakeHeadsArray, bestMoveTowardsFood)[0];
+          
+          const enemy = snakes.find(snake => snake.head.x === closestSnakeHead.x && snake.head.y === closestSnakeHead.y);
+          
+          console.log('my head:', head);
+          console.log('closest enemy identified:', enemy.name, enemy.head, enemy.length, enemy.shout);
+          console.log('limited distance from enemy head:',getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)));
+          
+          //! if there is less than 4 available blocks to move, check if the closest snake head is inside that space and if they are bigger than you, save yourself
   
-      console.log('space available for best food move:', spaceForBestFoodMove);
-  
-      //!identify the closest snake, identify their head and if the closest hazard is that snake's head, move towards open space
-  
-      if (spaceForBestFoodMove <= 4) { //todo: probably need a better condition to apply logic
-        //? new obstacle array including possible moves by enemies
-        const obstaclesWithPotentialEnemyMoves = combineHazards(snakes, hazards, head, potentialEnemyMoves);
-
-        const snakeHeadsArray = 
-          snakes.map(snake => snake.head)
-            .flat()
-            .filter(snakeHead => snakeHead.x !== head.x && snakeHead.y !== head.y);
-        
-        const closestSnakeHead = sortTargetsByDistance(snakeHeadsArray, bestMoveTowardsFood)[0];
-        
-        const enemy = snakes.find(snake => snake.head.x === closestSnakeHead.x && snake.head.y === closestSnakeHead.y);
-        
-        console.log('my head:', head);
-        console.log('closest enemy identified:', enemy.name, enemy.head, enemy.length, enemy.shout);
-        console.log('limited distance from enemy head:',getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)));
-        
-        //! if there is less than 4 available blocks to move, check if the closest snake head is inside that space and if they are bigger than you, save yourself
-
-        if (getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)) <= spaceForBestFoodMove && enemy.length >= gameData.you.length) { //todo: account for potential enemy moves
-          move = bestMoveTowardsOpenSpace.id;
-          shout = 'Ew, get away from me.'
-          console.log('this snake is tooO close, moving away!', move);
+          if (getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)) <= spaceForBestFoodMove && enemy.length >= gameData.you.length) { //todo: account for potential enemy moves
+            move = bestMoveTowardsOpenSpace.id;
+            shout = 'Ew, get away from me.'
+            console.log('this snake is tooO close, moving away!', move);
+          } else {
+            move = bestMoveTowardsFood;
+            console.log('occular pat-down complete; still going for food - yolo:', move);
+          }
         } else {
           move = bestMoveTowardsFood;
-          console.log('occular pat-down complete; still going for food - yolo:', move);
+          shout = 'om nom nom nom';
         }
-      } else {
-        move = bestMoveTowardsFood;
-        shout = 'om nom nom nom';
+        console.log('move after all considerations:', move);
       }
-      console.log('move after all considerations:', move);
     }
   }
 
@@ -147,6 +165,17 @@ function handleMove(request, response) {
 }
 
 //! ********** decision making functions **********
+function attackSnake(possibleMoves, snakeHead, me) {
+  const move = getMoveTowardsTarget(possibleMoves, snakeHead, me.body);
+  return move;
+}
+
+function getSnakesToDestroy(snakes, me) {
+  //? only attack snakes that are at least 2 units smaller, so the final move wreck me
+  const targetSnakes = snakes.filter(snake => snake.length < me.length - 1);
+  return targetSnakes;
+}
+
 //? look up space available on move
 function getOpenSpace(move, array) {
   const area = array.find(item => item.id === move);
@@ -341,11 +370,12 @@ function getPotentialSnakeCoords(snakeHead) {
   return newPotentialSnakeCoords;
 }
 
-function combineHazards(snakes, hazards, head, potentialEnemyMoves) { // *also sorts by distance
+function combineHazards(snakes, hazards, head, potentialEnemyMoves = []) { // *also sorts by distance
   const obstacles = snakes
     .map(snake => snake.body)
     .flat()
     .concat(hazards)
+    .concat(potentialEnemyMoves)
     .filter(obstacle => {
       if (obstacle.x === head.x && obstacle.y === head.y) {
         return false;
@@ -353,9 +383,6 @@ function combineHazards(snakes, hazards, head, potentialEnemyMoves) { // *also s
         return true;
       }
     })
-    if (potentialEnemyMoves) {
-      obstacles.concat(potentialEnemyMoves);
-    }
 
   return obstacles;
 }
