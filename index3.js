@@ -159,8 +159,7 @@ function findOpenSpace(moves, myBody, obstacles, height, width) {
   const head = myBody[0];
   let obstaclesSortedByDistance = sortTargetsByDistance(obstacles, head); 
   obstaclesSortedByDistance.shift(); //! remove own head from array
-  console.log('obstacles sorted by distance:', obstaclesSortedByDistance);
-  
+  // console.log('obstacles sorted by distance:', obstaclesSortedByDistance);
   let movesByDistance = [];
   for (let i = 0; i < moves.length; i++) {
     //? find all obstacles on the same axis (x,y)
@@ -169,9 +168,8 @@ function findOpenSpace(moves, myBody, obstacles, height, width) {
     //? move towards the diff with higher absolute value
     //? if equal, move towards greater distance area
     const theMoveAsCoord = moveAsCoord(moves[i], head);
-    console.log('the move:', theMoveAsCoord);
-    console.log('move:', moves[i]);
-
+    // console.log('the move:', theMoveAsCoord);
+    // console.log('move:', moves[i]);
     let obj = {
       id: moves[i],
       coord: theMoveAsCoord,
@@ -283,9 +281,7 @@ function getMoveTowardsTarget(moves, target, myBody) {
   //? if negative diffY, coord is to the UP of head
 
   let sortedMovesByDistanceFromHead = newMoves.sort((a,b) => getDistanceFromHead(moveAsCoord(a, head), target) - getDistanceFromHead(moveAsCoord(b, head), target));
-
-  console.log('sortedPossibleMovesByShortestDistanceToTarget:', sortedMovesByDistanceFromHead);
-
+  // console.log('sortedPossibleMovesByShortestDistanceToTarget:', sortedMovesByDistanceFromHead);
   return sortedMovesByDistanceFromHead[0];
 };
 
