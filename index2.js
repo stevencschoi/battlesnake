@@ -55,8 +55,7 @@ function handleMove(request, response) {
   let move;
   let shout;
 
-  if (snakes.length === 2) {
-    //! ********** go for the kill **********
+  if (snakes.length === 2) { //! ********** go for the kill **********
     const enemy = snakes.find(snake => snake.id !== gameData.you.id);
 
     if (enemy.length < gameData.you.length) {
@@ -70,11 +69,10 @@ function handleMove(request, response) {
     move = possibleMoves[0];
     shout = `Mom's spaghetti`;
   } else {
-    console.log('finding open space...');
     const movesSortedByOpenSpace = findOpenSpace(possibleMoves, snakeBody, obstacles, boardHeight, boardWidth);
     const bestMoveTowardsOpenSpace = movesSortedByOpenSpace[0];
     
-    console.log('moves by distance:', movesSortedByOpenSpace);
+    console.log('moves by most safe area:', movesSortedByOpenSpace);
 
     if (movesSortedByOpenSpace !== undefined) {
       console.log('best move to open space:', bestMoveTowardsOpenSpace.id, bestMoveTowardsOpenSpace.mostSpace);
@@ -85,12 +83,11 @@ function handleMove(request, response) {
       // validate how much space available in move towards food
       const spaceForBestFoodMove = getOpenSpace(bestMoveTowardsFood, movesSortedByOpenSpace);
   
-      console.log('move space:', spaceForBestFoodMove);
+      console.log('space available for best food move:', spaceForBestFoodMove);
   
       //!identify the closest snake, identify their head and if the closest hazard is that snake's head, move towards open space
   
       if (spaceForBestFoodMove <= 4) {
-        console.log('limited space available for this move!', spaceForBestFoodMove);
         const snakeHeadsArray = 
           snakes.map(snake => snake.head)
             .flat()
@@ -101,19 +98,17 @@ function handleMove(request, response) {
   
         const enemy = snakes.find(snake => snake.head.x === closestSnakeHead.x && snake.head.y === closestSnakeHead.y);
   
-        console.log('enemy identified:', enemy);
+        console.log('enemy identified:', enemy.name, enemy.head, enemy.length, enemy.shout);
         console.log('conditional distance from enemy head:',getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)));
         
+        //! if there is less than 4 available blocks to move, check if the closest snake head is inside that space and if they are bigger than you, save yourself
         if (getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)) <= spaceForBestFoodMove && enemy.length >= gameData.you.length) {
-          console.log('enemy snake length:', enemy.length);
-          console.log('your length:', gameData.you.length);
           move = bestMoveTowardsOpenSpace.id;
           shout = 'Ew, get away from me.'
           console.log('this snake is tooO close, moving away!', move);
         } else {
-          console.log('move in else statement still go for food:', move);
           move = bestMoveTowardsFood;
-          console.log('moving towards food:', move);
+          console.log('occular pat-down complete; still going for food - yolo:', move);
         }
       } else {
         move = bestMoveTowardsFood;
@@ -121,9 +116,8 @@ function handleMove(request, response) {
       }
       console.log('move after all considerations:', move);
     }
-    }
+  }
 
-  // console.log('current direction:', getCurrentDirection(head, neck));
   console.log('confirming move:', move);
   response.status(200).send({
     move: move,
@@ -143,7 +137,6 @@ function findOpenSpace(moves, snakeBody, obstacles, height, width) {
   // compare possible moves and determine which option will have the most space to move
   // convert potential move to coordinate and sort them by available space (least hazards within 1 unit in surrounding area)
   const head = snakeBody[0];
-
   let obstaclesSortedByDistance = sortTargetsByDistance(obstacles, head); 
   obstaclesSortedByDistance.shift(); //! remove own head from array
   console.log('obstacles sorted by distance:', obstaclesSortedByDistance);
@@ -169,9 +162,7 @@ function findOpenSpace(moves, snakeBody, obstacles, height, width) {
       .filter(obstacle => obstacle.x === moveAsCoord(moves[i], head).x)
       .sort((a,b) => getDiffX(a, moveAsCoord(moves[i], head)) - getDiffX(b, moveAsCoord(moves[i], head)));
 
-    console.log('obstaclesRelativeToX:', obstaclesRelativeToMoveX);
     const closestObstacleX = obstaclesRelativeToMoveX[0];
-    console.log('closest obstacle on x axis:', closestObstacleX);
     
     if (closestObstacleX !== undefined) {
       let lowestDiffY = getDiffY(closestObstacleX, moveAsCoord(moves[i], head));
@@ -199,9 +190,7 @@ function findOpenSpace(moves, snakeBody, obstacles, height, width) {
       .filter(obstacle => obstacle.y === moveAsCoord(moves[i], head).y)
       .sort((a,b) => getDiffY(a, moveAsCoord(moves[i], head)) - getDiffY(b, moveAsCoord(moves[i], head)));
 
-    console.log('obstaclesRelativeToY:', obstaclesRelativeToMoveY);
     const closestObstacleY = obstaclesRelativeToMoveY[0];
-    console.log('closest obstacle on y axis:', closestObstacleY);
     
     if (closestObstacleY !== undefined) {
       let lowestDiffX = getDiffX(closestObstacleY, moveAsCoord(moves[i], head));
@@ -255,7 +244,7 @@ function getDistanceFromHead(coord,head) {
 
 function sortTargetsByDistance(array, head) {
   const arrSortedByDistance = array.sort((a,b) => getDistanceFromHead(a, head) - getDistanceFromHead(b, head));
-  console.log('closest target:', arrSortedByDistance[0]);
+  // console.log('closest target:', arrSortedByDistance[0]);
   return arrSortedByDistance;
 }
 
@@ -280,11 +269,9 @@ function getMoveTowardsTarget(moves, target, snakeBody) {
   //? if positive diffY, coord is to the DOWN of head
   //? if negative diffY, coord is to the UP of head
 
-  console.log('possible moves in getMoveFn:', newMoves);
-
   let sortedMovesByDistanceFromHead = newMoves.sort((a,b) => getDistanceFromHead(moveAsCoord(a, head), target) - getDistanceFromHead(moveAsCoord(b, head), target));
 
-  console.log('sortedMoves:', sortedMovesByDistanceFromHead);
+  console.log('sortedPossibleMovesByShortestDistanceToTarget:', sortedMovesByDistanceFromHead);
 
   return sortedMovesByDistanceFromHead[0];
 
@@ -330,11 +317,9 @@ function combineSnakesHazards(snakes,hazards,head) {
 //! ********** validation functions **********
 function offBoard(position, height, width) {
   if (position.x > width - 1 || position.x < 0) {
-    console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   }
   else if (position.y > height - 1 || position.y < 0) {
-    console.log(`{ ${position.x}, ${position.y} } is off board!`);
     return true;
   } else {
     return false;
