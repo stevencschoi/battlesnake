@@ -47,7 +47,8 @@ function handleMove(request, response) {
   snakes.forEach(snake => console.log('snakes in play:', snake.name));
   let moves = ['up', 'right', 'down', 'left'];
 
-  const enemySnakeHeads = getEnemySnakeHeads(snakes, head);
+  const enemySnakes = getEnemySnakes(snakes, me);
+  const enemySnakeHeads = enemySnakes.map(snake => snake.head);
 
   let potentialEnemyMoves = [];
   enemySnakeHeads.forEach(snake => {
@@ -57,38 +58,77 @@ function handleMove(request, response) {
     }
   });
 
-  const obstacles = combineHazards(snakes, hazards, head);
+  const snakeBodies = snakes.map(snake => snake.body);
+
+  const obstacles = combineHazards(snakeBodies, hazards, head);
   //? array of invalid coordinates on board
   const obstaclesIncludingMyHead = [...obstacles];
   obstaclesIncludingMyHead.push(head);
   //? new obstacle array including possible moves by enemies
-  const obstaclesWithPotentialEnemyMoves = combineHazards(snakes, hazards, head, potentialEnemyMoves);
+  const obstaclesWithPotentialEnemyMoves = combineHazards(snakeBodies, hazards, head, potentialEnemyMoves);
 
-  const board = createBoard(boardHeight, boardWidth);
-  const boardAsSafeCoords = board.filter((coord) => !obstaclesIncludingMyHead.find(({ x, y }) => coord.x === x && coord.y === y));
+  // const board = createBoard(boardHeight, boardWidth);
+  // const boardAsSafeCoords = board.filter((coord) => !obstaclesIncludingMyHead.find(({ x, y }) => coord.x === x && coord.y === y));
 
   //? eliminate possible moves that are out of bounds or hazardous
   let possibleMoves = filterPossibleMoves(moves, boardHeight, boardWidth, myBody, obstacles);
-  let possibleMovesWithPotentialEnemyMoves = filterPossibleMoves(possibleMoves, boardHeight, boardWidth, myBody, obstaclesWithPotentialEnemyMoves);
+  let possibleMovesWithPotentialEnemyMoves = filterPossibleMoves(moves, boardHeight, boardWidth, myBody, obstaclesWithPotentialEnemyMoves);
 
-  console.log('possibleMoves:', possibleMoves);
-  console.log('possibleMoves including potential enemy moves:', possibleMovesWithPotentialEnemyMoves);
+  // console.log('possibleMoves:', possibleMoves);
+  // console.log('possibleMoves including potential enemy moves:', possibleMovesWithPotentialEnemyMoves);
 
+  //todo: latency too high looping though all this... how to improve performance?
+  //? filter out any possible moves that lead to less than 2 possible next moves
+  //! if the next move after this best move has only one possible move or less, move towards next closest food
+  // let safePossibleNextMoves = [];
+  // for (const move of possibleMovesWithPotentialEnemyMoves) {
+  //   const nextTurnMyBody = getSnakeCoordsForNextMove(move, myBody);
+  //   console.log('for move:', move);
+  //   console.log('nextTurnMyBody:', nextTurnMyBody);
+  //   console.log('next turn my head:', nextTurnMyBody[0]);
+  //   //! next turn obstacles will assume enemy snakes move towards the closest food
+  //   const nextTurnEnemySnakeBodies = enemySnakes.map(snake => {
+  //     // determine enemy possible moves
+  //     const possibleEnemyMoves = filterPossibleMoves(moves, boardHeight, boardWidth, snake.body, obstaclesIncludingMyHead);
+  //     // find each snake's closest food
+  //     const enemyFoodByDistance = sortTargetsByDistance(food, snake.head);
+  //     // find the direction that snake must travel to eat it
+  //     const moveToClosestFood = getMoveTowardsTarget(possibleEnemyMoves, enemyFoodByDistance[0], snake.body);
+  //     // return the coords of that snake if it moves in that direction
+  //     return snake.body = getSnakeCoordsForNextMove(moveToClosestFood, snake.body);
+  //   });
+
+  //   // console.log('enemy sneks next turn:', nextTurnEnemySnakeBodies);
+  
+  //   nextTurnEnemySnakeBodies.forEach(snake => console.log('enemy snakes for next turn:', snake));
+  //   const nextTurnObstacles = combineHazards(nextTurnEnemySnakeBodies, hazards, nextTurnMyBody[0]);
+    
+  //   thisMovePossibleNextMoves = filterPossibleMoves(possibleMovesWithPotentialEnemyMoves, boardHeight, boardWidth, nextTurnMyBody, nextTurnObstacles);
+  //   if (thisMovePossibleNextMoves.length >= 1) {
+  //     thisMovePossibleNextMoves.push(safePossibleNextMoves);
+  //   }
+  // }
+  // console.log('safest possible next moves:', safePossibleNextMoves);
+
+  //? pre-move food analysis:
   const foodByDistance = sortTargetsByDistance(food, head);
   console.log('food by distance:', foodByDistance);
+  //? pre-move enemy analysis:
+  const snakesToDestroy = getSnakesToDestroy(snakes, me).map(snake => snake.head);
+  const snakesToDestroyByDistance = sortTargetsByDistance(snakesToDestroy, head);
+
+  let bestMoveTowardsFood = getMoveTowardsTarget(possibleMovesWithPotentialEnemyMoves, foodByDistance[0], myBody);
+  console.log('best move towards food:', bestMoveTowardsFood);
   
   let move;
   let shout;
-
-  const snakesToDestroy = getSnakesToDestroy(snakes, me).map(snake => snake.head);
-  console.log('snakes to destroy:', snakesToDestroy);
-  const snakesToDestroyByDistance = sortTargetsByDistance(snakesToDestroy, head);
-
   
+  //! if there is a significantly weaker snake closer than the nearest food, kill it
   if (snakesToDestroy.length > 0 && getDistanceFromHead(snakesToDestroyByDistance[0], head) < getDistanceFromHead(foodByDistance[0], head)) {
+    console.log('snakes to destroy:', snakesToDestroy);
     console.log('enemy snake distance from head:', getDistanceFromHead(snakesToDestroyByDistance[0], head));
     console.log('food distance from head:', getDistanceFromHead(foodByDistance[0], head));
-    
+
     move = attackSnake(possibleMovesWithPotentialEnemyMoves, snakesToDestroyByDistance[0], me);
     shout = `I'm coming for dat booty`;
     console.log('********** TARGETING ENEMY SNEK:', move);
@@ -99,6 +139,9 @@ function handleMove(request, response) {
         move = getMoveTowardsTarget(possibleMoves, enemy.head, myBody);
         shout = 'BOOM, headshot!';
         console.log('********** GOING FOR THE KILL:', move);
+      } else {
+        console.log('***** not strong enough, get the noms');
+        move = bestMoveTowardsFood;
       }
     }
   
@@ -106,17 +149,12 @@ function handleMove(request, response) {
       move = possibleMoves[0];
       shout = `Mom's spaghetti`;
     } else {
-      const movesSortedByOpenSpace = findOpenSpace(possibleMoves, myBody, obstacles, boardHeight, boardWidth);
+      const movesSortedByOpenSpace = findOpenSpace(possibleMovesWithPotentialEnemyMoves, myBody, obstacles, boardHeight, boardWidth);
+      console.log('moves by most safe area:', movesSortedByOpenSpace);
       const bestMoveTowardsOpenSpace = movesSortedByOpenSpace[0];
       
-      console.log('moves by most safe area:', movesSortedByOpenSpace);
-  
       if (movesSortedByOpenSpace !== undefined) {
         console.log('best move to open space:', bestMoveTowardsOpenSpace.id, bestMoveTowardsOpenSpace.mostSpace);
-    
-        let bestMoveTowardsFood = getMoveTowardsTarget(possibleMoves, foodByDistance[0], myBody);
-    
-        console.log('best move towards food:', bestMoveTowardsFood);
         //? validate how much space available in move towards food
         const spaceForBestFoodMove = getOpenSpace(bestMoveTowardsFood, movesSortedByOpenSpace);
     
@@ -125,16 +163,13 @@ function handleMove(request, response) {
         //!identify the closest snake, identify their head and if the closest hazard is that snake's head, move towards open space
     
         if (spaceForBestFoodMove <= 4) { //todo: probably need a better condition to apply logic
-          const snakeHeadsArray = 
-            snakes.map(snake => snake.head)
-              .flat()
-              .filter(snakeHead => snakeHead.x !== head.x && snakeHead.y !== head.y);
-          
-          const closestSnakeHead = sortTargetsByDistance(snakeHeadsArray, bestMoveTowardsFood)[0];
+          const snakeHeadsByDistance = sortTargetsByDistance(enemySnakeHeads, bestMoveTowardsFood);
+          const closestSnakeHead = snakeHeadsByDistance[0];
           
           const enemy = snakes.find(snake => snake.head.x === closestSnakeHead.x && snake.head.y === closestSnakeHead.y);
           
           console.log('my head:', head);
+          console.log('enemy heads:', snakeHeadsByDistance);
           console.log('closest enemy identified:', enemy.name, enemy.head, enemy.length, enemy.shout);
           console.log('limited distance from enemy head:',getDistanceFromHead(enemy.head, moveAsCoord(bestMoveTowardsFood, head)));
           
@@ -299,7 +334,7 @@ function getMoveTowardsTarget(moves, target, myBody) {
   const neck = myBody[1];
   
   //? of possible moves, determine which move will get to food in minimum steps
-  const currentDirection = getCurrentDirection(head, neck);
+  const currentDirection = getDirection(head, neck);
   const oppositeDirection = directionMatrix[currentDirection];
 
   const newMoves = moves.filter(move => move !== oppositeDirection);
@@ -333,7 +368,7 @@ function moveAsCoord(move, head) {
   }
 };
 
-function getCurrentDirection(head, neck) {
+function getDirection(head, neck) {
   if (head.x - neck.x === 0 && head.y - neck.y === -1) {
     return 'down';
   } else if (head.x - neck.x === 0 && head.y - neck.y === 1) {
@@ -343,18 +378,23 @@ function getCurrentDirection(head, neck) {
   } else return 'right';
 };
 
-function getEnemySnakeHeads(snakes, head) {
-  const enemySnakeHeads = snakes
-    .map(snake => snake.head)
-    .flat()
-    .filter(snek => {
-      if (snek.x === head.x && snek.y === head.y) {
-      return false;
-      } else {
-        return true;
-      }
-    });
-  return enemySnakeHeads;
+function getSnakeCoordsForNextMove(move, body) {
+  //? apply directional move for the head
+  //? move the last piece of the body to the position of the previous piece
+  let newSnakeCoords = [];
+  for (let i = 0; i < body.length; i++) {
+    if (i === 0) {
+      newSnakeCoords.push(moveAsCoord(move, body[i]));
+    } else {
+      newSnakeCoords.push(body[i-1]);
+    }
+  }
+  return newSnakeCoords;
+}
+
+function getEnemySnakes(snakes, me) {
+  const enemySnakes = snakes.filter(snake => snake.id !== me.id);
+  return enemySnakes;
 }
 
 //? consider potential movements from enemy head positions as hazards
@@ -370,9 +410,9 @@ function getPotentialSnakeCoords(snakeHead) {
   return newPotentialSnakeCoords;
 }
 
-function combineHazards(snakes, hazards, head, potentialEnemyMoves = []) { // *also sorts by distance
-  const obstacles = snakes
-    .map(snake => snake.body)
+function combineHazards(bodies, hazards, head, potentialEnemyMoves = []) { // *also sorts by distance
+  const obstacles = bodies
+    // .map(snake => snake.body)
     .flat()
     .concat(hazards)
     .concat(potentialEnemyMoves)
